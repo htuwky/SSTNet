@@ -1,0 +1,94 @@
+# ===========================
+# Python & System Defaults
+# ===========================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ===========================
+# Virtual Environments
+# ===========================
+# Virtualenv
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+# Conda
+.conda/
+dataset/
+# ===========================
+# IDE & Editor
+# ===========================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ===========================
+# Project Specific (SSTNet)
+# ===========================
+
+# 1. Ignore large Datasets
+# 我们只保留dataset文件夹结构，不上传里面的几千张图片和txt
+dataset/
+dataset/Images/
+dataset/TXT/
+dataset/fixations/
+dataset/maps/
+dataset/complexitys/
+
+EMS/
+
+# 2. Ignore generated Feature files (Very Large!)
+# 你的 CLIP 特征文件可能有几百MB甚至几GB，绝对不能传
+output/*.npy
+*.npy
+*.npz
+
+# 3. Ignore Model Checkpoints & Logs
+# 训练过程中的权重文件和日志
+checkpoints/
+result/
+logs/
+*.pt
+*.pth
+*.ckpt
+best_model.txt
+wandb/
+# 4. Ignore specific downloaded weights
+# 如果你下载了 CLIP 或 MSNet 的预训练权重，也不要传
+*.tar
+*.gz
+
+# ===========================
+# Exceptions (Keep these)
+# ===========================
+# 即使忽略了 dataset/ 也可以强制保留其中的 README (如果有)
+!dataset/README.md
+!README.md
+!requirements.txt

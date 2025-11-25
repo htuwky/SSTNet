@@ -33,7 +33,7 @@ TEMP_DROPOUT = 0.2       # 防止过拟合
 
 # 空间流 (NetVLAD)
 SPATIAL_CLUSTERS = 8     # 聚类中心数 K
-SPATIAL_OUT_DIM = 512    # 投影回的维度
+SPATIAL_OUT_DIM = 2048    # 投影回的维度
 SPATIAL_ALPHA = 100.0    # [新增] NetVLAD 软分配系数
 
 # 分类头 (Classifier)

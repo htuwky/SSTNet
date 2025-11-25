@@ -1,36 +1,208 @@
-# SSTNet
 
-### Data Preprocessing: `data_process/split_fix.py`
 
-此脚本负责将原始的眼动数据从 Excel 格式转换为模型所需的序列化文本格式，并执行必要的数据清洗。
+# SSTNet: Spatial-Spectral Temporal Network for Eye-Tracking Classification
 
-**主要功能 (Key Functions):**
 
-1. **格式转换 (Format Conversion)**: 将以“受试者”为单位的 Excel (`.xlsx`) 文件拆解为以“受试者_图片”为单位的独立 `.txt` 文件，便于后续 DataLoader 读取。
-2. **特征提取 (Feature Extraction)**: 从原始数据中提取 5 维关键特征：**注视点序号 (Index)**, **X坐标**, **Y坐标**, **注视时长 (Duration)**, **瞳孔大小 (Pupil)**。
-3. **数据清洗 (Data Cleaning)**: 自动剔除超出屏幕分辨率（标准 1024x768）或坐标异常（负值）的无效注视点。
 
-**输入与输出 (Input & Output):**
+**SSTNet** 是一个基于深度学习的多模态分类框架，专门用于处理眼动追踪数据（Eye-Tracking Data）。该项目旨在通过结合受试者的**注视行为（时序生理特征）和注视内容（空间视觉特征）**，来辅助诊断精神疾病（如区分精神分裂症 SZ 与健康对照组 HC）。
 
-- **输入**: `dataset/Train_Valid/Fixations/*.xlsx` (包含原始眼动记录)
-- **输出**: `dataset/Train_Valid/TXT/*.txt` (清洗后的序列文件，格式为 `Index,X,Y,Duration,Pupil`)
 
-**使用方法 (Usage):**
+
+## 📖 项目核心架构
+
+
+
+模型采用 **双流架构 (Two-Stream Architecture)**：
+
+1. **时序流 (Temporal Stream)**: 使用 **Transformer** 处理注视点序列的时序逻辑，融合了坐标 (X, Y)、注视时长、瞳孔大小等生理特征。
+2. **空间流 (Spatial Stream)**: 使用 **NetVLAD** 捕捉注视区域的视觉语义分布，基于 CLIP 提取的图像特征进行聚类分析。
+
+------
+
+
+
+## 🛠️ 环境依赖 (Requirements)
+
+
+
+请确保安装以下 Python 库：
+
+- **Python** >= 3.8
+- **PyTorch** (建议 GPU 版本)
+- **CLIP** (`pip install git+https://github.com/openai/CLIP.git`)
+- **WandB** (用于实验记录与可视化)
+- **Pandas**, **NumPy**, **Tqdm**, **Scikit-learn**, **Matplotlib**, **OpenPyXL**
+
+可以使用以下命令安装基础依赖：
 
 Bash
 
-```py
+```
+pip install torch torchvision pandas numpy tqdm scikit-learn matplotlib wandb openpyxl
+pip install git+https://github.com/openai/CLIP.git
+```
+
+------
+
+
+
+## 📂 项目结构 (File Structure)
+
+
+
+Plaintext
+
+```
+SSTNet/
+├── config.py                   # 全局配置文件 (路径、超参数、模型参数)
+├── train.py                    # 训练主脚本
+├── check_env.py                # 环境自检脚本
+├── data_process/               # 数据预处理工具包
+│   ├── split_fix.py            # [步骤1] 将原始 Excel 清洗并拆分为 TXT 序列
+│   ├── generate_clip_features.py # [步骤2] 提取注视点处的 CLIP 视觉特征 (.npy)
+│   ├── check_fixation_stats.py # 统计序列长度分布，辅助设定 MAX_SEQ_LEN
+│   ├── check_data_stats.py     # 统计数据分布，用于归一化参数计算
+│   └── inspect_npy.py          # 检查生成的特征文件内容
+├── models/                     # 模型定义
+│   ├── sstnet.py               # SSTNet 主模型 (负责组装双流)
+│   ├── temporal_stream.py      # 时序流 (Transformer)
+│   └── spatial_stream.py       # 空间流 (NetVLAD)
+├── utils/                      # 工具函数
+│   ├── dataloader.py           # 数据加载器 (Dataset & DataLoader)
+│   ├── loss.py                 # 损失函数 (Focal Loss)
+│   ├── metrics.py              # 评价指标 (AUC, ACC, F1等)
+│   └── misc.py                 # 杂项 (随机种子固定, 模型保存)
+└── dataset/                    # 数据存放目录 (需自行建立)
+    ├── Images/                 # 原始图片素材
+    ├── Train_Valid/            # 训练与验证数据
+    │   ├── Fixations/          # 原始眼动 Excel 文件
+    │   └── TXT/                # 生成的清洗后 TXT 文件
+    └── output/                 # 特征提取输出目录
+```
+
+------
+
+
+
+## 🚀 使用指南 (Usage Pipeline)
+
+
+
+请严格按照以下步骤进行数据准备和训练。
+
+
+
+### 第一步：准备原始数据
+
+
+
+将原始数据放入 `config.py` 指定的目录中：
+
+1. **图片文件**: 放入 `dataset/Images/` (支持 .jpg, .png 等)。
+2. **眼动数据**: 放入 `dataset/Train_Valid/Fixations/` (原始 Excel 文件)。
+3. **划分表**: 确保 `dataset/Train_Valid.xlsx` 存在（用于交叉验证划分）。
+
+
+
+### 第二步：数据清洗与序列化
+
+
+
+运行 `split_fix.py`，将以“受试者”为单位的 Excel 数据拆解为以“受试者_图片”为单位的 `.txt` 序列文件，并清洗越界坐标。
+
+Bash
+
+```
 python data_process/split_fix.py --dataset_dir dataset
 ```
 
-**check_fixation_stats.py**该文件统计每张图片的注释点数目，并最终决定采取32为最佳数目，所有注视点基本上都在32之内，并且32是8的倍数，gpu好处理，医学上讲究
-宁缺毋滥，保护长尾数据（异常值）的完整性，远比节省一点点显存更重要，我们后期采取mask掩码，Transformer 的视角： 当 Transformer 计算注意力时，它会先检查 Mask。凡是 Mask 标记为 0 的位置，它会把注意力权重直接设为 负无穷。
-结果：在数学运算上，这些填充点对真实特征的影响力也是 0。模型根本不会去“学习”这些填充数据，它只会专注于前面的真实注视点。
-NetVLAD 的视角： 我们在代码里专门加了 masked_fill 逻辑。在聚类投票时，填充点的票数也被强制清零了。
+- **输出**: `dataset/Train_Valid/TXT/*.txt`
+- **内容**: 每行包含 `Index, X, Y, Duration, Pupil`。
 
-generate_clip.py与rinet项目的不同是rinet项目处理整张图片的特征，但是我的脚本首先升级为clip，不是传统的特征提取器，其次我根据坐标提取特征，而rinet提取的为  
-整张图片的特征，我提取的是x,y附近的特征，模拟人眼只看一部分，不看全局
 
-inspect_npy.py脚本是检查生成的.npy文件，随机抽取检查的
 
-config.py文件是全局的配置文件
+### 第三步：提取视觉特征 (CLIP)
+
+
+
+运行 `generate_clip_features.py`。该脚本会模拟人眼视野，根据注视点坐标裁剪图片局部（Crop），并使用 CLIP 提取特征。
+
+Bash
+
+```
+python data_process/generate_clip_features.py
+```
+
+- **输出**: `dataset/output/feature_dict_CLIP.npy`
+- **说明**: 这是一个字典文件，Key 为文件名，Value 为 `[Seq_Len, 512]` 的特征矩阵。
+
+
+
+### (可选) 第四步：数据分析与配置更新
+
+
+
+运行统计脚本以确定最佳超参数（如序列长度、归一化边界）。
+
+- `python data_process/check_fixation_stats.py`: 查看序列长度分布。
+- `python data_process/check_data_stats.py`: 查看生理数据的 Min/Max/Mean/Std。
+  - **注意**: 如果统计出的数值范围与 `config.py` 中的默认值差异较大，请手动更新 `config.py` 中的 `SCREEN_X_MIN`, `DUR_MAX` 等参数。
+
+
+
+### 第五步：模型训练
+
+
+
+运行 `train.py` 开始训练。支持 K-Fold 交叉验证（默认为 4 折）。
+
+Bash
+
+```
+# 训练第 0 折 (Fold 0)
+python train.py --fold 0
+
+# 训练第 1 折 (Fold 1)
+python train.py --fold 1
+```
+
+- **监控**: 训练过程中会自动连接 WandB 记录 Loss 和 AUC 曲线。
+- **模型保存**: 最佳模型将保存在 `checkpoints/` 目录下。
+
+------
+
+
+
+## ⚙️ 配置文件 (Config)
+
+
+
+所有关键参数均在 `config.py` 中管理，常用修改项如下：
+
+- **数据路径**: `DATASET_DIR`, `IMAGE_DIR`, `TXT_DIR`
+- **模型参数**:
+  - `MAX_SEQ_LEN = 32`: 序列最大长度（超过截断，不足补0）。
+  - `SPATIAL_CLUSTERS = 8`: NetVLAD 的聚类中心数。
+- **训练参数**:
+  - `BATCH_SIZE = 64`
+  - `LEARNING_RATE = 1e-4`
+  - `EPOCHS = 100`
+
+------
+
+
+
+## 🧠 模型细节
+
+
+
+1. **数据加载 (`utils/dataloader.py`)**:
+   - 读取 `.txt` 中的生理数据，进行 Min-Max 归一化（映射到 -1~1）。
+   - 读取 `.npy` 中的视觉特征。
+   - 生成 `Mask` 掩码，标记真实数据与 Padding 数据。
+   - 标签逻辑：Subject ID < 200 视为 HC (0)，>= 200 视为 SZ (1)。
+2. **损失函数 (`utils/loss.py`)**:
+   - 使用 **Focal Loss** 解决正负样本不平衡问题。
+3. **主要创新点**:
+   - **Look where humans look**: 不使用全图特征，而是利用眼动坐标提取局部 CLIP 特征。
+   - **Masked Attention**: 在 Transformer 和 NetVLAD 中均严格处理了 Mask，消除填充数据对模型判断的干扰。

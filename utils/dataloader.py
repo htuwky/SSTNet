@@ -98,7 +98,7 @@ class SSTDataset(Dataset):
         key = item['key']
         txt_path = item['txt_path']
         label = item['label']
-
+        subject_id_str = key.split('_', 1)[0]
         # --- A. 获取视觉特征 (Visual) ---
         # Shape: [Seq_Len, 512]
         visual_feat = self.visual_data[key]
@@ -159,7 +159,8 @@ class SSTDataset(Dataset):
             torch.FloatTensor(padded_visual),  # [32, 512]
             torch.FloatTensor(padded_physio),  # [32, 4]
             torch.FloatTensor(mask),  # [32]
-            torch.tensor(label, dtype=torch.long)  # Scalar (0/1)
+            torch.tensor(label, dtype=torch.long),  # Scalar (0/1)
+            subject_id_str  # 5. [新增] 受试者ID (字符串)
         )
 
     def __len__(self):

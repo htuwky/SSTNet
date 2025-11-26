@@ -53,7 +53,7 @@ class SSTNet(nn.Module):
             # 无 Sigmoid (配合 Focal Loss)
         )
 
-    def forward(self, visual, physio, mask):
+    def forward(self, visual, physio, mask,return_feats=False):
         # 分支 A
         temp_feat = self.temporal_stream(visual, physio, mask)
 
@@ -63,6 +63,9 @@ class SSTNet(nn.Module):
         # 融合
         fusion_feat = torch.cat([temp_feat, spatial_feat], dim=1)
 
+        # [新增逻辑] 如果开启提取模式，直接返回特征
+        if return_feats:
+            return fusion_feat
         # 诊断
         logits = self.classifier(fusion_feat)
 

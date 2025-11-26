@@ -5,7 +5,7 @@ import argparse
 from tqdm import tqdm
 import matplotlib.pyplot as plt  # 用于画图分析
 
-
+#该文件用于判断  生成多少个注视点,根据判断，32个为最佳，大部分不够。填0补充
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_dir', type=str, required=True, help='Path to dataset directory')

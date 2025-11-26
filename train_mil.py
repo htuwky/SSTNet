@@ -17,33 +17,52 @@ from utils.misc import fix_seed
 
 
 # 1. 数据集类 (保持不变)
+# train_mil.py 中的 MILDataset 类
+
 class MILDataset(Dataset):
-    def __init__(self, features_file, fold_idx=0, set_name='train',seed=42):
+    def __init__(self, features_file, fold_idx=0, set_name='train', seed=42):
         print(f"🔄 [{set_name.upper()}] Loading features from: {features_file}")
         try:
             self.data = np.load(features_file, allow_pickle=True).item()
         except FileNotFoundError:
             raise FileNotFoundError(f"❌ File not found: {features_file}")
 
-        all_subjects = sorted(list(self.data.keys()))
+        # --- [核心修正] 读取 Excel 进行官方划分 (与 train.py 保持一致) ---
+        import pandas as pd
+        excel_path = os.path.join(config.DATASET_DIR, 'Train_Valid.xlsx')
+        if not os.path.exists(excel_path):
+            raise FileNotFoundError(f"❌ Excel file not found: {excel_path}")
 
-        # [关键修改] 2. 固定随机种子并打乱
-        # 必须保证 train 和 val 看到的打乱顺序是一样的，否则会数据泄漏
-        import random
-        random.seed(seed)
-        random.shuffle(all_subjects)  # <--- 这里打乱！
+        df = pd.read_excel(excel_path)
+        folds = ['Set_0', 'Set_1', 'Set_2', 'Set_3']
 
-        N = len(all_subjects)
-        fold_size = N // 4
-        val_start = fold_idx * fold_size
-        val_end = (fold_idx + 1) * fold_size
+        # 确定当前折的目标 ID
+        val_col = folds[fold_idx]
+        train_cols = [f for f in folds if f != val_col]
 
+        target_ids = []
         if set_name == 'val':
-            self.subjects = all_subjects[val_start:val_end]
+            # 验证集
+            raw_ids = df[val_col].dropna().values
+            target_ids = [str(int(i)).zfill(3) for i in raw_ids]
         else:
-            self.subjects = all_subjects[:val_start] + all_subjects[val_end:]
+            # 训练集
+            for col in train_cols:
+                raw_ids = df[col].dropna().values
+                target_ids.extend([str(int(i)).zfill(3) for i in raw_ids])
 
-        print(f"✅ Loaded {len(self.subjects)} patients.")
+        # 过滤：只保留在 feature_file (.npy) 里存在的 ID
+        # (因为有些 ID 可能没看图或者数据损坏被过滤了)
+        self.subjects = [sid for sid in target_ids if sid in self.data]
+
+        # 打印统计
+        labels = [self.data[s]['label'] for s in self.subjects]
+        if len(labels) > 0:
+            pos = sum(labels)
+            print(
+                f"✅ {set_name.upper()}: {len(self.subjects)} patients (Pos: {int(pos)}, Neg: {len(labels) - int(pos)})")
+        else:
+            print(f"⚠️ {set_name.upper()}: 0 patients found! Check fold index.")
 
     def __len__(self):
         return len(self.subjects)
@@ -112,8 +131,8 @@ def main():
         return
 
     # 加载数据
-    train_set = MILDataset(feature_file, fold_idx=0, set_name='train', seed=args.seed)
-    val_set = MILDataset(feature_file, fold_idx=0, set_name='val', seed=args.seed)
+    train_set = MILDataset(feature_file, fold_idx=args.fold, set_name='train')
+    val_set = MILDataset(feature_file, fold_idx=args.fold, set_name='val')
 
     # [关键修改] 自动探测维度
     sample_feat, _ = train_set[0]
@@ -142,8 +161,13 @@ def main():
 
         if auc > best_auc:
             best_auc = auc
-            torch.save(model.state_dict(), "best_mil_model.pth")
-            print("  --> 💾 New Best Saved!")
+            # [优化] 保存到 checkpoints 文件夹，并带上 fold 后缀
+            save_dir = os.path.join(config.PROJECT_ROOT, 'checkpoints')
+            os.makedirs(save_dir, exist_ok=True)
+
+            save_path = os.path.join(save_dir, f"best_mil_model_fold{args.fold}.pth")
+            torch.save(model.state_dict(), save_path)
+            print(f"  --> 💾 New Best Saved: {save_path}")
 
     print("=" * 40)
     print(f"🏆 Final Best Patient-Level AUC: {best_auc:.4f}")

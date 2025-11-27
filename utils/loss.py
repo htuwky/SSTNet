@@ -41,4 +41,6 @@ class FocalLoss(nn.Module):
 
 def get_loss_function():
     # 返回默认配置的 Focal Loss
-    return FocalLoss(alpha=0.5, gamma=2.0)
+    # return FocalLoss(alpha=0.5, gamma=2.0)
+    # 暂时使用标准的 BCEWithLogitsLoss，这是二分类的黄金标准
+    return nn.BCEWithLogitsLoss()

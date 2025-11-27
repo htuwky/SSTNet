@@ -42,7 +42,7 @@ HIDDEN_DIM = 128
 TEMP_LAYERS = 2          # 层数
 TEMP_HEADS = 4           # [修改] 128维 / 4头 = 32每头 (适配 HIDDEN_DIM)
 TEMP_FF_DIM = 512        # [修改] 128 * 4 = 512 (适配 HIDDEN_DIM)
-TEMP_DROPOUT = 0.5       # [修改] 提高到 0.5 抗过拟合
+TEMP_DROPOUT = 0.1       # [修改] 提高到 0.5 抗过拟合
 
 # 空间流 (NetVLAD)
 SPATIAL_CLUSTERS = 8     # 聚类中心数 K
@@ -52,12 +52,12 @@ SPATIAL_ALPHA = 100.0    # NetVLAD 软分配系数
 # 分类头 (Classifier)
 # 融合后维度 = 时序流(128) + 空间流(128) = 256
 CLS_HIDDEN_DIM = 64      # [修改] 分类器隐藏层维度
-CLS_DROPOUT = 0.6        # [修改] 分类器 Dropout (更高一点)
+CLS_DROPOUT = 0.1        # [修改] 分类器 Dropout (更高一点)
 
 # ================= 训练配置 =================
 BATCH_SIZE = 64          
-LEARNING_RATE = 1e-4
-WEIGHT_DECAY = 1e-2      # [修改] 加大权重衰减 (1e-4 -> 1e-2)
+LEARNING_RATE = 5e-4
+WEIGHT_DECAY = 1e-4     # [修改] 加大权重衰减 (1e-4 -> 1e-2)
 EPOCHS = 100
 DEVICE = "cuda"          
 SEED = 42                

@@ -175,10 +175,23 @@ def main():
             "val_loss": val_metrics['loss'],
             "val_auc": val_metrics['auc'],
             "val_acc": val_metrics['acc'],
-            "val_f1": val_metrics['f1']
+            "val_f1": val_metrics['f1'],
+            "val_sens": val_metrics['sensitivity'],
+            "val_spec": val_metrics['specificity'],
+            "val_prec": val_metrics['precision']
         })
 
-        print(f"Epoch {epoch + 1}: Train Loss: {train_loss:.4f} | Val AUC: {val_metrics['auc']:.4f}")
+        # print(f"Epoch {epoch + 1}: Train Loss: {train_loss:.4f} | Val AUC: {val_metrics['auc']:.4f}")
+        print(f"-" * 80)
+        print(f"Epoch {epoch + 1}/{config.EPOCHS} | Train Loss: {train_loss:.4f}")
+        print(f"Validation Metrics:")
+        print(f"   Accuracy:    [{val_metrics['acc']:.4f}]")
+        print(f"   Sensitivity: [{val_metrics['sensitivity']:.4f}]")
+        print(f"   Specificity: [{val_metrics['specificity']:.4f}]")
+        print(f"   AUC:         [{val_metrics['auc']:.4f}]")
+        print(f"   Precision:   [{val_metrics['precision']:.4f}]")
+        print(f"   F1-score:    [{val_metrics['f1']:.4f}]")
+        print(f"-" * 80)
 
         if val_metrics['auc'] > best_auc:
             best_auc = val_metrics['auc']

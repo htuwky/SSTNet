@@ -69,7 +69,8 @@ EMS/
 output/*.npy
 *.npy
 *.npz
-
+*.csv
+*.txt
 # 3. Ignore Model Checkpoints & Logs
 # 训练过程中的权重文件和日志
 checkpoints/

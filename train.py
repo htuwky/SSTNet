@@ -27,7 +27,13 @@ def train_one_epoch(model, loader, criterion, optimizer, device, epoch):
 
     # [修改] 解包 6 个变量: local, global, physio, mask, label, id
     for step, (local_vis, global_vis, physio, mask, label, subject_ids) in enumerate(pbar):
-        # 1. 数据搬运
+        # # --- 新增调试代码 ---
+        # if step == 0:
+        #     print(f"\n🔍 [Debug Check] Labels in this batch: {label.tolist()}")
+        #     print(f"🔍 [Debug Check] Subject IDs: {subject_ids}")
+        # # ------------------
+        #调试成功，删掉注释
+        # # 1. 数据搬运
         local_vis = local_vis.to(device)  # [B, 32, 512]
 
         # [关键] 去掉中间的维度: [B, 1, 512] -> [B, 512]

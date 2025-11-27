@@ -4,18 +4,39 @@ from tqdm import tqdm
 import numpy as np
 import codecs
 import argparse
+import sys
 
+#1.第一步需要python split_fix.py --test
+# python split_fix.py --train
+
+# 将项目根目录加入路径，以便导入 config
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config #
+# --- 参数解析 ---
 # --- 参数解析 ---
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset_dir', type=str, help='Path to the dataset directory')
+# [修改] 引入互斥组来选择模式
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument('--train', action='store_true', help='Process files from the Training Fixations directory, output to Train_Valid/TXT.')
+group.add_argument('--test', action='store_true', help='Process files from the Testing Fixations directory, output to Test/TXT.')
 args = parser.parse_args()
 
-if not args.dataset_dir:
-    raise ValueError("Please provide --dataset_dir argument.")
-
 # --- 1. 路径配置 ---
-input_path_val = os.path.join(args.dataset_dir, 'Train_Valid', 'Fixations', '*')
-output_path = os.path.join(args.dataset_dir, 'Train_Valid', 'TXT')
+if args.train:
+    # [选择训练集路径]
+    input_fixation_dir = config.TRAIN_FIXATIONS_DIR
+    output_path = config.TRAIN_TXT_DIR
+    print(f"🚀 Processing Training Fixations from: {input_fixation_dir}")
+elif args.test:
+    # [选择测试集路径]
+    input_fixation_dir = config.TEST_FIXATIONS_DIR
+    output_path = config.TEST_TXT_DIR
+    print(f"🚀 Processing Testing Fixations from: {input_fixation_dir}")
+else:
+    raise ValueError("Internal Error: Must specify either --train or --test mode.")
+
+
+input_path_val = os.path.join(input_fixation_dir, '*')
 os.makedirs(output_path, exist_ok=True)
 
 # 获取所有 Excel 文件
@@ -78,7 +99,7 @@ for f_path in tqdm(excel_files, desc="Processing Files"):
 
     # 获取 Images 文件夹下的所有实际图片
     Images_on_disk = []
-    img_dir_root = os.path.join(args.dataset_dir, 'Images')
+    img_dir_root = config.IMAGE_DIR  # # 使用 config.py 中集中配置的路径
     if os.path.exists(img_dir_root):
         for home, dirs, files in os.walk(img_dir_root):
             for filename in files:
@@ -104,8 +125,8 @@ for f_path in tqdm(excel_files, desc="Processing Files"):
             FIX_Pupil = Fix_Pupil_list[index]
 
             # 越界清洗
-            out_index_X = [i for i, x in enumerate(FIX_X) if x >= 1024 or x < 0]
-            out_index_Y = [i for i, x in enumerate(FIX_Y) if x >= 768 or x < 0]
+            out_index_X = [i for i, x in enumerate(FIX_X) if x > config.SCREEN_X_MAX or x < config.SCREEN_X_MIN]  #
+            out_index_Y = [i for i, x in enumerate(FIX_Y) if x > config.SCREEN_Y_MAX or x < config.SCREEN_Y_MIN]  #
             out_index = list(np.unique(out_index_X + out_index_Y))
 
             if out_index:

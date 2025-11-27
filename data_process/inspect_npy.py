@@ -2,22 +2,16 @@ import sys
 import os
 import numpy as np
 import random
+import argparse  # [新增] 导入 argparse
 
 # 将项目根目录加入路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import config
+import config  #
 
-# 🔑 Key: outman_05_image01
-#    🔹 Local Features (Patches):
-#       Shape: (14, 512)
-#       Stats: Mean=0.0123, Std=0.5102...
-#    🔹 Global Feature (Context):
-#       Shape: (1, 512)
-#       Stats: Mean=-0.0045, Std=0.4988...
-
-
-
-
+#第三步  python data_process/inspect_npy --test
+#python data_process/inspect_npy --train
+#该文件检查生成的npy文件是否合格，随机抽取5个检查
+#第3，是检查文件，后来训练者可以不运行
 def print_stats(name, array):
     """打印数组的统计信息"""
     if array is None:
@@ -50,7 +44,22 @@ def print_stats(name, array):
 
 
 def main():
-    npy_path = config.CLIP_FEATURE_FILE
+    # --- 1. 参数解析 ---
+    parser = argparse.ArgumentParser(description="Inspect generated CLIP features NPY file.")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--train', action='store_true', help='Inspect the Training/Validation feature file.')
+    group.add_argument('--test', action='store_true', help='Inspect the Test feature file.')
+    args = parser.parse_args()
+
+    # --- 2. 路径确定 ---
+    if args.train:
+        npy_path = config.CLIP_TRAIN_FEATURE_FILE
+    elif args.test:
+        npy_path = config.CLIP_TEST_FEATURE_FILE
+    else:
+        # 理论上不会执行到这里
+        return
+
     print(f"🔍 Inspecting file: {npy_path}")
 
     if not os.path.exists(npy_path):
@@ -102,6 +111,7 @@ def main():
 
     except Exception as e:
         print(f"❌ Error reading file: {e}")
+        # 在调试工具中，我们可能希望看到完整的错误堆栈，但此处保持简单打印。
 
 
 if __name__ == "__main__":

@@ -7,11 +7,21 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 # 数据集路径
 DATASET_DIR = os.path.join(PROJECT_ROOT, 'dataset')
 IMAGE_DIR = os.path.join(DATASET_DIR, 'Images')
-TXT_DIR = os.path.join(DATASET_DIR, 'Train_Valid', 'TXT')
+
+# [核心修改 1: TXT 文件输出路径细分]
+TXT_ROOT = os.path.join(DATASET_DIR, 'TXT')
+TRAIN_TXT_DIR = os.path.join(TXT_ROOT, 'Train_Valid') # 训练/验证集 TXT 路径
+TEST_TXT_DIR = os.path.join(TXT_ROOT, 'Test')         # 测试集 TXT 路径
+
+# [核心修改 2: 原始 Excel 文件 (.xlsx) 的输入路径配置]
+TRAIN_FIXATIONS_DIR = os.path.join(DATASET_DIR, 'Train_Valid', 'Fixations')
+# 请根据你的实际路径调整 TEST 路径
+TEST_FIXATIONS_DIR = os.path.join(DATASET_DIR, 'Test', 'Fixations')
 
 # 输出路径
 OUTPUT_DIR = os.path.join(DATASET_DIR, 'output')
-CLIP_FEATURE_FILE = os.path.join(OUTPUT_DIR, 'feature_dict_CLIP.npy')
+CLIP_TRAIN_FEATURE_FILE = os.path.join(OUTPUT_DIR, 'feature_dict_CLIP_train.npy') #
+CLIP_TEST_FEATURE_FILE = os.path.join(OUTPUT_DIR, 'feature_dict_CLIP_test.npy') #
 
 # ================= 特征提取配置 (Part 1) =================
 CLIP_MODEL_NAME = "ViT-B/32"
@@ -60,6 +70,6 @@ SCREEN_Y_MAX = 767.0
 
 # 真实统计值
 DUR_MIN = 0.0
-DUR_MAX = 1071.0   
+DUR_MAX = 1070.8870
 PUPIL_MIN = 189.0
 PUPIL_MAX = 4141.0

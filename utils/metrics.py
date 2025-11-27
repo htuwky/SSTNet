@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, precision_score, recall_score
 
-
+# 计算评估指标（AUC, F1, ACC等）。
 def calculate_metrics(y_true, y_pred_logits):
     """
     计算二分类的所有关键指标

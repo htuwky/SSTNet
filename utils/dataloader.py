@@ -14,11 +14,12 @@ class SSTDataset(Dataset):
         self.set_name = set_name
         self.max_len = config.MAX_SEQ_LEN
 
-        print(f"🔄 [{set_name.upper()}] Loading visual features from {config.CLIP_FEATURE_FILE} ...")
+        # [修改后] config.CLIP_TRAIN_FEATURE_FILE
+        print(f"🔄 [{set_name.upper()}] Loading visual features from {config.CLIP_TRAIN_FEATURE_FILE} ...")
         try:
-            self.visual_data = np.load(config.CLIP_FEATURE_FILE, allow_pickle=True).item()
+            self.visual_data = np.load(config.CLIP_TRAIN_FEATURE_FILE, allow_pickle=True).item()
         except FileNotFoundError:
-            raise FileNotFoundError(f"❌ Feature file not found! Run generate_clip_features.py first.")
+            raise FileNotFoundError(f"❌ Feature file not found! Run generate_clip_features.py --train first.")
 
         self.samples = self._split_dataset(fold_idx)
         print(f"✅ {set_name.upper()} set loaded: {len(self.samples)} samples.")
@@ -43,7 +44,8 @@ class SSTDataset(Dataset):
                 target_ids.extend([str(int(i)).zfill(3) for i in raw_ids])
 
         sample_list = []
-        txt_folder = config.TXT_DIR
+
+        txt_folder = config.TRAIN_TXT_DIR
         all_files = os.listdir(txt_folder)
 
         for f in all_files:

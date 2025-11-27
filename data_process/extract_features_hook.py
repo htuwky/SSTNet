@@ -1,10 +1,12 @@
 import os
 import torch
+import torch.optim as optim # Keep this for compatibility, though not used in main
 import numpy as np
 from tqdm import tqdm
 import sys
+import argparse # [新增] 导入 argparse
 
-# 路径配置
+# 导入项目模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from models.sstnet import SSTNet
@@ -12,22 +14,31 @@ from utils.dataloader import get_loader
 
 
 def main():
+    # --- 1. 参数解析 ---
+    parser = argparse.ArgumentParser(description="Extract SSTNet features for MIL training.")
+    parser.add_argument('--fold', type=int, required=True, choices=[0, 1, 2, 3],
+                        help='Which cross-validation fold model to load for feature extraction.')
+    args = parser.parse_args()
+
+    FOLD_IDX = args.fold # [修改] 动态设置 Fold Index
+
     # 1. 配置
-    # [注意] 提取特征时，我们要用那个训练得最好的 Fold (比如 Fold 0: AUC 0.94)
-    FOLD_IDX = 3
     MODEL_PATH = os.path.join(config.PROJECT_ROOT, 'checkpoints', f'best_model_fold{FOLD_IDX}.pth')
     OUTPUT_FILE = os.path.join(config.OUTPUT_DIR, f'mil_features_fold{FOLD_IDX}.npy')
 
     device = torch.device(config.DEVICE)
 
+    print(f"\n🚀 Starting feature extraction using Fold {FOLD_IDX} model...")
+    print(f"💾 Features will be saved to: {OUTPUT_FILE}")
+
     # 2. 加载模型
-    print(f"🚀 Loading model from {MODEL_PATH}...")
+    print(f"🔄 Loading model from {MODEL_PATH}...")
     if not os.path.exists(MODEL_PATH):
         print(f"❌ Model file not found! Please run train.py --fold {FOLD_IDX} first.")
         return
 
     model = SSTNet().to(device)
-    checkpoint = torch.load(MODEL_PATH)
+    checkpoint = torch.load(MODEL_PATH, map_location=device) # [优化] 增加 map_location
     if 'model' in checkpoint:
         model.load_state_dict(checkpoint['model'])
     else:
@@ -38,8 +49,9 @@ def main():
     # 3. 准备数据
     print("🔄 Preparing DataLoaders (Train + Val)...")
     # 我们需要所有人的数据，所以加载 Fold 0 的 train 和 val 就涵盖了全集
-    loader_train = get_loader('train', fold_idx=0, batch_size=64)
-    loader_val = get_loader('val', fold_idx=0, batch_size=64)
+    # [修改] 使用 config.BATCH_SIZE
+    loader_train = get_loader('train', fold_idx=0, batch_size=config.BATCH_SIZE)
+    loader_val = get_loader('val', fold_idx=0, batch_size=config.BATCH_SIZE)
 
     # 4. 特征提取主循环
     patient_data = {}
@@ -77,7 +89,8 @@ def main():
     counts = []
 
     for subj, data in patient_data.items():
-        feats_matrix = np.array(data['features'])
+        # [优化] 将特征列表转为 numpy 数组
+        feats_matrix = np.array(data['features'], dtype=np.float32)
         label = data['label']
 
         final_data[subj] = {

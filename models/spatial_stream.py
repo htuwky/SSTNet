@@ -10,7 +10,7 @@ class NetVLAD(nn.Module):
     不依赖外部配置文件。
     """
 
-    def __init__(self, dim=512, num_clusters=8, alpha=100.0, out_dim=512):
+    def __init__(self, dim=128, num_clusters=8, alpha=100.0, out_dim=128):
         """
         Args:
             dim: 输入特征维度

@@ -5,16 +5,16 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-# 尝试导入配置
-try:
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    import config
+# [修改] 移除 try/except 块，直接导入 config
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
 
-    TXT_DIR = config.TXT_DIR
-    NPY_PATH = config.CLIP_FEATURE_FILE
-except ImportError:
-    TXT_DIR = '../dataset/Train_Valid/TXT'
-    NPY_PATH = '../dataset/output/feature_dict_CLIP.npy'
+#第五步  python check_data_stats.py
+#第五步是为了确定标准/归一化数据进行的数据分析，后来训练者可根据自己的数据集进行修改
+#若只是用本数据集进行修训练，第3，4，5步均可不用运行
+# [修改] 使用新的 config 变量，只分析训练集数据
+TXT_DIR = config.TRAIN_TXT_DIR
+NPY_PATH = config.CLIP_TRAIN_FEATURE_FILE
 
 
 def analyze_physio_data(txt_dir):
@@ -83,16 +83,24 @@ def analyze_clip_features(npy_path):
         total_seqs = len(data)
         print(f"✅ Dictionary loaded. Containing {total_seqs} sequences.")
 
-        # --- [关键修改] 去除采样，处理所有数据 ---
-        # 考虑到数据量可能较大，我们不把它们堆叠成一个巨大的矩阵(防止OOM)，
-        # 而是使用流式统计 (Running Statistics) 或分块处理。
-        # 但对于 1.6w * 32 * 512 (约1GB数据)，直接堆叠也是安全的。
-
         print("⏳ Stacking all features for rigorous analysis...")
         all_feats = []
         for k in tqdm(data.keys(), desc="Stacking"):
-            # 每个 value 是 [Seq_Len, 512]
-            all_feats.append(data[k])
+
+            item = data[k]
+            # 兼容 v2.0 结构 (如果它是字典，尝试堆叠 local 和 global 特征)
+            if isinstance(item, dict):
+                if 'local' in item:
+                    all_feats.append(item['local'])
+                # global 是 [1, 512]，也堆叠进去
+                if 'global' in item:
+                    all_feats.append(item['global'])
+            elif isinstance(item, np.ndarray):
+                all_feats.append(item)
+
+        if not all_feats:
+            print("⚠️ No valid features found in the NPY file.")
+            return None
 
         # 堆叠成超级大矩阵: [Total_Points, 512]
         large_mat = np.vstack(all_feats)

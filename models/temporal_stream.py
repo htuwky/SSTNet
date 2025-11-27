@@ -10,14 +10,14 @@ class TemporalStream(nn.Module):
     """
 
     def __init__(self,
-                 input_dim=512,  # 保持你要求的默认值
+                 input_dim=128,  # 保持你要求的默认值
                  clip_dim=512,  # [新增] CLIP 原始维度 (用于全局特征投影)
                  physio_dim=4,
                  max_len=32,
                  num_layers=2,
-                 nhead=8,  # 保持你要求的默认值
-                 dim_feedforward=2048,  # 保持你要求的默认值
-                 dropout=0.2):  # 保持你要求的默认值
+                 nhead=4,  # 保持你要求的默认值
+                 dim_feedforward=512,  # 保持你要求的默认值
+                 dropout=0.5):  # 保持你要求的默认值
         """
         Args:
             input_dim: 输入/内部计算维度

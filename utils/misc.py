@@ -3,7 +3,7 @@ import numpy as np
 import random
 import os
 
-
+# 杂项工具（固定随机种子、保存检查点）。
 def fix_seed(seed=42):
     """
     固定所有随机种子，确保实验可复现

@@ -6,7 +6,7 @@ import wandb
 from tqdm import tqdm
 import sys
 import argparse
-
+import torch.nn as nn
 # 导入项目模块
 import config
 from models.sstnet import SSTNet
@@ -14,7 +14,7 @@ from utils.dataloader import get_loader
 from utils.loss import get_loss_function
 from utils.metrics import calculate_metrics
 from utils.misc import fix_seed, save_checkpoint
-
+from utils.loss import LabelSmoothingBCEWithLogitsLoss
 
 def train_one_epoch(model, loader, criterion, optimizer, device, epoch):
     """
@@ -159,8 +159,16 @@ def main():
         lr=config.LEARNING_RATE,
         weight_decay=config.WEIGHT_DECAY
     )
-    criterion = get_loss_function()
+    # criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([1.0]).to(device), label_smoothing=0.1)
+    # print("✅ Advanced Setup: BCEWithLogitsLoss with label_smoothing=0.1 enabled.")
+    # [修改后]
+    # 1. 定义正样本权重 (如果您的数据正负均衡，设为 1.0 即可)
+    pos_weight = torch.tensor([1.0]).to(device)
+    # 2. 实例化自定义的 Loss 类，设置平滑因子为 0.1
+    criterion = LabelSmoothingBCEWithLogitsLoss(smoothing=0.1, pos_weight=pos_weight)
 
+    print("✅ Custom LabelSmoothingBCEWithLogitsLoss (smoothing=0.1) enabled.")
+    #
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=config.EPOCHS, eta_min=1e-6
     )

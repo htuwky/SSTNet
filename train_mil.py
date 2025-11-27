@@ -146,8 +146,9 @@ def main():
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False)
 
     # 构建模型 (使用检测到的维度)
-    model = RobustGatedAttention(input_dim=detected_dim, hidden_dim=256, dropout=args.dropout).to(device)
-
+    # model = RobustGatedAttention(input_dim=detected_dim, hidden_dim=256, dropout=args.dropout).to(device)
+    model = RobustGatedAttention(input_dim=detected_dim, bottleneck_dim=32, hidden_dim=128, dropout=args.dropout).to(
+        device)
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-3)
     criterion = nn.BCEWithLogitsLoss()
 

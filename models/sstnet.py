@@ -68,8 +68,15 @@ class SSTNet(nn.Module):
             nn.Dropout(config.CLS_DROPOUT),
             nn.Linear(config.CLS_HIDDEN_DIM, 1)
         )
+        # [新增] 6. 对比学习投影头 (Projection Head)
+        # 将 384 维特征映射到 128 维用于计算对比 Loss
+        self.projector = nn.Sequential(
+            nn.Linear(config.HIDDEN_DIM * 3, config.HIDDEN_DIM * 3),
+            nn.ReLU(),
+            nn.Linear(config.HIDDEN_DIM * 3, 128)  # 压缩到 128 维
+        )
 
-    def forward(self, local_visual, global_visual, physio, mask, return_feats=False):
+    def forward(self, local_visual, global_visual, physio, mask, return_feats=False, return_proj=False):
         """
         Args:
             local_visual:  [Batch, Seq, 512]
@@ -93,10 +100,19 @@ class SSTNet(nn.Module):
         # 5. 三流融合
         fusion_feat = torch.cat([temp_feat, spatial_feat, struct_feat], dim=1)
 
+        # [修改] 各种返回模式
         if return_feats:
-            return fusion_feat
+            return fusion_feat  # 供 MIL 提取特征用
 
         logits = self.classifier(fusion_feat)
+
+        # [新增] 如果训练时开启对比学习，返回 (logits, projections)
+        if return_proj:
+            # 投影并归一化 (SupCon 必须归一化)
+            proj = self.projector(fusion_feat)
+            proj = torch.nn.functional.normalize(proj, dim=1)
+            return logits, proj
+
         return logits
 
 

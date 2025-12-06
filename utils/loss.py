@@ -49,3 +49,67 @@ class LabelSmoothingBCEWithLogitsLoss(nn.Module):
 # 用于兼容旧代码的辅助函数（现在不需要了，但保留也无妨）
 def get_loss_function():
     return nn.BCEWithLogitsLoss()
+
+
+# utils/loss.py (追加在末尾)
+
+class SupConLoss(nn.Module):
+    """
+    Supervised Contrastive Loss: https://arxiv.org/abs/2004.11362
+    让同类样本特征更近，异类样本特征更远。
+    """
+
+    def __init__(self, temperature=0.07):
+        super(SupConLoss, self).__init__()
+        self.temperature = temperature
+
+    def forward(self, features, labels):
+        """
+        Args:
+            features: [Batch, Dim] (归一化后的特征)
+            labels: [Batch]
+        """
+        device = features.device
+        batch_size = features.shape[0]
+
+        labels = labels.contiguous().view(-1, 1)
+        if labels.shape[0] != batch_size:
+            raise ValueError('Num of labels does not match num of features')
+
+        # 创建 Mask: 同类为 1，异类为 0
+        mask = torch.eq(labels, labels.T).float().to(device)
+
+        # 计算相似度矩阵 (Cosine Similarity)
+        # features 必须已经归一化
+        anchor_dot_contrast = torch.div(
+            torch.matmul(features, features.T),
+            self.temperature
+        )
+
+        # 数值稳定性处理
+        logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
+        logits = anchor_dot_contrast - logits_max.detach()
+
+        # Mask 掉自己与自己的对比 (对角线)
+        logits_mask = torch.scatter(
+            torch.ones_like(mask),
+            1,
+            torch.arange(batch_size).view(-1, 1).to(device),
+            0
+        )
+        mask = mask * logits_mask
+
+        # 计算 Log-Prob
+        exp_logits = torch.exp(logits) * logits_mask
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True) + 1e-6)
+
+        # 计算每个样本的平均 Loss (只在有正样本对时计算)
+        # mean_log_prob_pos: [Batch]
+        mask_sum = mask.sum(1)
+        mean_log_prob_pos = (mask * log_prob).sum(1) / (mask_sum + 1e-6)
+
+        # 最终 Loss (排除掉没有同类伙伴的孤立点)
+        loss = - mean_log_prob_pos
+        loss = loss[mask_sum > 0].mean()
+
+        return loss if not torch.isnan(loss) else torch.tensor(0.0).to(device)

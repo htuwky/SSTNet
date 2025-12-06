@@ -14,7 +14,7 @@ from utils.dataloader import get_loader
 from utils.loss import get_loss_function
 from utils.metrics import calculate_metrics
 from utils.misc import fix_seed, save_checkpoint
-from utils.loss import LabelSmoothingBCEWithLogitsLoss
+from utils.loss import LabelSmoothingBCEWithLogitsLoss,SupConLoss
 
 def train_one_epoch(model, loader, criterion, optimizer, device, epoch):
     """
@@ -22,7 +22,11 @@ def train_one_epoch(model, loader, criterion, optimizer, device, epoch):
     """
     model.train()
     running_loss = 0.0
+    # [新增] 实例化对比 Loss
+    criterion_supcon = SupConLoss(temperature=0.07).to(device)
 
+    # [新增] 平衡系数 (分类占 1.0, 对比占 0.5)
+    lambda_supcon = 0.5
     pbar = tqdm(loader, desc=f"Epoch {epoch + 1}/{config.EPOCHS} [Train]")
 
     # [修改] 解包 6 个变量: local, global, physio, mask, label, id
@@ -43,16 +47,22 @@ def train_one_epoch(model, loader, criterion, optimizer, device, epoch):
         mask = mask.to(device)
         label = label.to(device)
 
-        # 2. 清空梯度
         optimizer.zero_grad()
 
-        # 3. 前向传播 (传入 Global 特征)
-        outputs = model(local_vis, global_vis, physio, mask)  # Logits [Batch, 1]
+        # [修改] 前向传播，要求返回投影特征
+        # outputs 是 logits, proj_feats 是归一化的特征
+        outputs, proj_feats = model(local_vis, global_vis, physio, mask, return_proj=True)
 
-        # 4. 计算损失
-        loss = criterion(outputs, label.float().unsqueeze(1))
+        # 1. 计算分类 Loss (主任务)
+        loss_cls = criterion(outputs, label.float().unsqueeze(1))
 
-        # 5. 反向传播与更新
+        # 2. 计算对比 Loss (辅助任务)
+        # 注意：SupCon 需要 label 来知道谁和谁是同类
+        loss_con = criterion_supcon(proj_feats, label)
+
+        # 3. 总 Loss
+        loss = loss_cls + lambda_supcon * loss_con
+
         loss.backward()
         optimizer.step()
 

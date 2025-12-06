@@ -31,7 +31,7 @@ EXTRACT_BATCH_SIZE = 64  # 提取特征时的批次大小
 # ================= 模型结构配置 (Part 2) =================
 # 输入维度
 INPUT_DIM = 512          # 原始 CLIP 特征维度 (Local & Global)
-PHYSIO_DIM = 4           # 生理特征维度
+PHYSIO_DIM = 2           # 生理特征维度
 MAX_SEQ_LEN = 32         # 序列最大长度
 
 # [关键新增] 内部瓶颈层维度 (Bottleneck)
@@ -48,6 +48,12 @@ TEMP_DROPOUT = 0.5       # [修改] 提高到 0.5 抗过拟合
 SPATIAL_CLUSTERS = 8     # 聚类中心数 K
 SPATIAL_OUT_DIM = 128    # [修改] 输出也要对齐到 HIDDEN_DIM (原2048太大)
 SPATIAL_ALPHA = 100.0    # NetVLAD 软分配系数
+
+# ================= 结构流 (GNN) 配置 =================
+# [新增]
+GNN_K = 4                # 邻居数量 (K-Nearest Neighbors)
+GNN_DIM = 128            # GNN 内部维度 (通常与 HIDDEN_DIM 保持一致)
+GNN_DROPOUT = 0.5        # GNN 专用的 Dropout
 
 # 分类头 (Classifier)
 # 融合后维度 = 时序流(128) + 空间流(128) = 256
@@ -69,7 +75,7 @@ SCREEN_Y_MIN = 0.0
 SCREEN_Y_MAX = 767.0
 
 # 真实统计值
-DUR_MIN = 0.0
-DUR_MAX = 1070.8870
-PUPIL_MIN = 189.0
-PUPIL_MAX = 4141.0
+# DUR_MIN = 0.0
+# DUR_MAX = 1070.8870
+# PUPIL_MIN = 189.0
+# PUPIL_MAX = 4141.0

@@ -80,12 +80,10 @@ class SSTDataset(Dataset):
         # --- B. 获取生理特征 ---
         try:
             df = pd.read_csv(txt_path, header=None)
-            raw_data = df.iloc[:, 1:5].values.astype(np.float32)
+            raw_data = df.iloc[:, 1:3].values.astype(np.float32)
 
-            min_vec = np.array([config.SCREEN_X_MIN, config.SCREEN_Y_MIN, config.DUR_MIN, config.PUPIL_MIN],
-                               dtype=np.float32)
-            max_vec = np.array([config.SCREEN_X_MAX, config.SCREEN_Y_MAX, config.DUR_MAX, config.PUPIL_MAX],
-                               dtype=np.float32)
+            min_vec = np.array([config.SCREEN_X_MIN, config.SCREEN_Y_MIN], dtype=np.float32)
+            max_vec = np.array([config.SCREEN_X_MAX, config.SCREEN_Y_MAX], dtype=np.float32)
 
             raw_data = np.clip(raw_data, min_vec, max_vec)
             norm_0_1 = (raw_data - min_vec) / (max_vec - min_vec + 1e-6)

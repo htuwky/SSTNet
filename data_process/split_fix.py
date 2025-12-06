@@ -70,30 +70,30 @@ for f_path in tqdm(excel_files, desc="Processing Files"):
         print(f"\n⚠️ Warning: Missing standard columns in {os.path.basename(f_path)}. Skipping.")
         continue
 
-    # 适配 Duration
-    if 'FIX_DURATION' in df.columns:
-        dur_col = 'FIX_DURATION'
-    elif 'X_DURATI' in df.columns:
-        dur_col = 'X_DURATI'
-    else:
-        continue
-
-    # 适配 Pupil
-    if 'FIX_PUPIL' in df.columns:
-        pupil_col = 'FIX_PUPIL'
-    elif 'Pupil' in df.columns:
-        pupil_col = 'Pupil'
-    else:
-        df['FIX_PUPIL_AUTO'] = 0
-        pupil_col = 'FIX_PUPIL_AUTO'
+    # # 适配 Duration
+    # if 'FIX_DURATION' in df.columns:
+    #     dur_col = 'FIX_DURATION'
+    # elif 'X_DURATI' in df.columns:
+    #     dur_col = 'X_DURATI'
+    # else:
+    #     continue
+    #
+    # # 适配 Pupil
+    # if 'FIX_PUPIL' in df.columns:
+    #     pupil_col = 'FIX_PUPIL'
+    # elif 'Pupil' in df.columns:
+    #     pupil_col = 'Pupil'
+    # else:
+    #     df['FIX_PUPIL_AUTO'] = 0
+    #     pupil_col = 'FIX_PUPIL_AUTO'
 
     # 提取数据
     IMAGE_list = df['IMAGE'].values.tolist()
     Fix_index_list = df['FIX_INDEX'].values
-    Fix_duration_list = df[dur_col].values
+    # Fix_duration_list = df[dur_col].values
     FIX_X_list = df['FIX_X'].values
     FIX_Y_list = df['FIX_Y'].values
-    Fix_Pupil_list = df[pupil_col].values
+    # Fix_Pupil_list = df[pupil_col].values
 
     Images_in_xlsx = np.unique(IMAGE_list)
 
@@ -121,8 +121,8 @@ for f_path in tqdm(excel_files, desc="Processing Files"):
             FIX_index = Fix_index_list[index]
             FIX_X = np.floor(FIX_X_list[index]).astype(np.int64)
             FIX_Y = np.floor(FIX_Y_list[index]).astype(np.int64)
-            FIX_duration = Fix_duration_list[index]
-            FIX_Pupil = Fix_Pupil_list[index]
+            # FIX_duration = Fix_duration_list[index]
+            # FIX_Pupil = Fix_Pupil_list[index]
 
             # 越界清洗
             out_index_X = [i for i, x in enumerate(FIX_X) if x > config.SCREEN_X_MAX or x < config.SCREEN_X_MIN]  #
@@ -133,12 +133,12 @@ for f_path in tqdm(excel_files, desc="Processing Files"):
                 FIX_X = np.delete(FIX_X, out_index, axis=0)
                 FIX_Y = np.delete(FIX_Y, out_index, axis=0)
                 FIX_index = np.delete(FIX_index, out_index, axis=0)
-                FIX_duration = np.delete(FIX_duration, out_index, axis=0)
-                FIX_Pupil = np.delete(FIX_Pupil, out_index, axis=0)
+                # FIX_duration = np.delete(FIX_duration, out_index, axis=0)
+                # FIX_Pupil = np.delete(FIX_Pupil, out_index, axis=0)
 
             with codecs.open(output_file_path, 'w', 'utf-8') as output_file:
                 for i in range(len(FIX_index)):
-                    line = f"{FIX_index[i]},{FIX_X[i]},{FIX_Y[i]},{FIX_duration[i]},{FIX_Pupil[i]}"
+                    line = f"{FIX_index[i]},{FIX_X[i]},{FIX_Y[i]}"
                     output_file.write(line)
                     output_file.write('\n')
 

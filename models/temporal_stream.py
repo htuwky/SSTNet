@@ -1,5 +1,40 @@
 import torch
 import torch.nn as nn
+import numpy as np
+
+
+class FourierEmbedding(nn.Module):
+    """
+    [新增组件] 傅里叶特征映射
+    将低维坐标 (x, y) 映射到高维正弦/余弦特征空间。
+    解决 MLP 的 Spectral Bias 问题，提升对精细空间位置的感知能力。
+    """
+
+    def __init__(self, input_dim=2, hidden_dim=128, scale=10.0):
+        super().__init__()
+        # 随机初始化频率矩阵 B (固定不可学习，类似 Positional Encoding)
+        # 映射维度: input_dim -> hidden_dim // 2 (因为有 sin 和 cos，所以输出会翻倍)
+        self.register_buffer(
+            "B",
+            torch.randn(input_dim, hidden_dim // 2) * scale
+        )
+        self.output_dim = hidden_dim  # 最终输出维度 (e.g., 128)
+
+    def forward(self, x):
+        """
+        Args:
+            x: [Batch, Seq, 2] (归一化后的 x, y)
+        Returns:
+            x_proj: [Batch, Seq, hidden_dim]
+        """
+        # 1. 投影: (2) @ (2, H/2) -> (H/2)
+        # x_proj = 2 * pi * x @ B
+        x_proj = (2 * np.pi * x) @ self.B
+
+        # 2. 拼接 Sin 和 Cos: [sin(...), cos(...)]
+        # 结果维度: [Batch, Seq, H]
+        return torch.cat([torch.sin(x_proj), torch.cos(x_proj)], dim=-1)
+
 
 
 class TemporalStream(nn.Module):
@@ -12,7 +47,7 @@ class TemporalStream(nn.Module):
     def __init__(self,
                  input_dim=128,  # 保持你要求的默认值
                  clip_dim=512,  # [新增] CLIP 原始维度 (用于全局特征投影)
-                 physio_dim=4,
+                 physio_dim=2,
                  max_len=32,
                  num_layers=2,
                  nhead=4,  # 保持你要求的默认值
@@ -34,12 +69,21 @@ class TemporalStream(nn.Module):
         self.input_dim = input_dim
 
         # 1. 生理特征投影层 (低维 -> 高维)
+        # self.physio_proj = nn.Sequential(
+        #     nn.Linear(physio_dim, input_dim),
+        #     nn.ReLU(),
+        #     nn.LayerNorm(input_dim)
+        # )
+        # [修改后] 升级为傅里叶特征映射
+        # scale=10.0 是一个经验值，控制对高频细节的敏感度
         self.physio_proj = nn.Sequential(
-            nn.Linear(physio_dim, input_dim),
+            FourierEmbedding(input_dim=physio_dim, hidden_dim=input_dim, scale=10.0),
+            # 这里的输出已经是 input_dim (128) 了
+            # 可以再加一层 MLP 来进一步融合，也可以直接用
+            nn.Linear(input_dim, input_dim),  # 可选：加一层线性变换让特征更灵活
             nn.ReLU(),
             nn.LayerNorm(input_dim)
         )
-
         # 2. [新增] 全局特征投影层
         # 将 CLIP 的全局特征 (512) 映射到内部维度 (input_dim)
         # 即使 input_dim 也是 512，这一层也有助于特征空间的对齐

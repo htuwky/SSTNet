@@ -26,7 +26,7 @@ def analyze_physio_data(txt_dir):
         return None
 
     # 使用列表暂存 (比 np.append 快得多)
-    all_x, all_y, all_dur, all_pupil = [], [], [], []
+    all_x, all_y = [], []
     valid_files = 0
 
     for f in tqdm(files, desc="Reading ALL TXT Files"):
@@ -34,13 +34,13 @@ def analyze_physio_data(txt_dir):
         try:
             # 格式: Index, X, Y, Duration, Pupil
             df = pd.read_csv(f, header=None)
-            if df.shape[1] < 5: continue
+            if df.shape[1] < 3: continue
 
             # 显式转换为 float32 节省内存
             all_x.extend(df.iloc[:, 1].values.astype(np.float32))
             all_y.extend(df.iloc[:, 2].values.astype(np.float32))
-            all_dur.extend(df.iloc[:, 3].values.astype(np.float32))
-            all_pupil.extend(df.iloc[:, 4].values.astype(np.float32))
+            # all_dur.extend(df.iloc[:, 3].values.astype(np.float32))
+            # all_pupil.extend(df.iloc[:, 4].values.astype(np.float32))
             valid_files += 1
         except Exception:
             continue
@@ -51,8 +51,8 @@ def analyze_physio_data(txt_dir):
     stats = {
         "X-Coordinate": np.array(all_x),
         "Y-Coordinate": np.array(all_y),
-        "Duration (ms)": np.array(all_dur),
-        "Pupil Size": np.array(all_pupil)
+        # "Duration (ms)": np.array(all_dur),
+        # "Pupil Size": np.array(all_pupil)
     }
 
     results = {}

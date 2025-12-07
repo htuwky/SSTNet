@@ -104,9 +104,10 @@ def train_one_epoch(model, loader, criterion, optimizer, device, epoch):
 
     return running_loss / len(loader)
 
+
 def validate(model, loader, criterion, device):
     """
-    验证模型 (病人级聚合评估)
+    验证模型 (病人级聚合评估) - 集成 TTA (测试时增强)
     """
     model.eval()
     running_loss = 0.0
@@ -123,15 +124,28 @@ def validate(model, loader, criterion, device):
             mask = mask.to(device)
             label = label.to(device)
 
-            # 前向传播
-            logits = model(local_vis, global_vis, physio, mask)
+            # ================= [新增] TTA: 预测 3 次取平均 =================
+            # 1. 原始预测
+            logits_1 = model(local_vis, global_vis, physio, mask)
 
-            # 计算 Loss
-            loss = criterion(logits, label.float().unsqueeze(1))
+            # 2. 增强预测 A (加微弱高斯噪音, 模拟传感器误差)
+            noise_a = torch.randn_like(local_vis) * 0.01
+            logits_2 = model(local_vis + noise_a, global_vis, physio, mask)
+
+            # 3. 增强预测 B (稍微大一点的噪音)
+            noise_b = torch.randn_like(local_vis) * 0.02
+            logits_3 = model(local_vis + noise_b, global_vis, physio, mask)
+
+            # 4. 取平均 (Logits 平均比 Prob 平均更稳定)
+            avg_logits = (logits_1 + logits_2 + logits_3) / 3.0
+            # ==============================================================
+
+            # 计算 Loss (使用 TTA 后的 logits)
+            loss = criterion(avg_logits, label.float().unsqueeze(1))
             running_loss += loss.item()
 
             # 转概率
-            probs = torch.sigmoid(logits).cpu().numpy().flatten()
+            probs = torch.sigmoid(avg_logits).cpu().numpy().flatten()
             labels_np = label.cpu().numpy()
 
             # 聚合逻辑

@@ -95,8 +95,8 @@ class SSTNet(nn.Module):
 
         # [新增] 4. 结构流 (Structural)
         # 注意：显式传入 physio (x,y) 用于动态建图 (KNN)
-        struct_feat = self.structural_stream(local_low, physio)
-
+        # struct_feat = self.structural_stream(local_low, physio)
+        struct_feat = self.structural_stream(local_low, physio, mask)
         # 5. 三流融合
         fusion_feat = torch.cat([temp_feat, spatial_feat, struct_feat], dim=1)
 

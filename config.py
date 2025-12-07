@@ -31,7 +31,7 @@ EXTRACT_BATCH_SIZE = 64  # 提取特征时的批次大小
 # ================= 模型结构配置 (Part 2) =================
 # 输入维度
 INPUT_DIM = 512          # 原始 CLIP 特征维度 (Local & Global)
-PHYSIO_DIM = 2           # 生理特征维度
+PHYSIO_DIM = 4           # 生理特征维度
 MAX_SEQ_LEN = 32         # 序列最大长度
 
 # [关键新增] 内部瓶颈层维度 (Bottleneck)

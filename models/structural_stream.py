@@ -110,32 +110,44 @@ class StructuralStream(nn.Module):
 
         return feature
 
-    def forward(self, x, coords):
+    # models/structural_stream.py
+
+    # [修改] 增加 mask 参数
+    def forward(self, x, coords, mask):
         """
         Args:
             x:      [Batch, Seq, Dim]
             coords: [Batch, Seq, 2]
+            mask:   [Batch, Seq] (1=真实点, 0=填充点)
         """
         B, N, C = x.shape
 
         # 1. 动态建图 (KNN)
-        # [B, N, k]
         knn_idx = self.get_knn_indices(coords, self.k)
 
-        # 2. 构造图特征 (EdgeConv 准备工作)
-        # [B, N, k, 2*C]
+        # 2. 构造图特征
         edge_feat = self.get_graph_feature(x, self.k, knn_idx)
 
-        # 3. 消息传递 (MLP)
-        # [B, N, k, C]
+        # 3. 消息传递
         edge_feat = self.mlp(edge_feat)
 
-        # 4. 聚合 (Max Pooling over neighbors)
+        # 4. 局部聚合 (Max Pooling over neighbors)
         # [B, N, C]
         local_graph_feat = edge_feat.max(dim=2)[0]
 
-        # 5. 全局池化 (Readout over sequence)
-        # [B, C] - 取整个序列中最显著的结构特征
+        # ================= [新增核心] Masking 机制 =================
+        # 防止 Max Pooling 选中填充点产生的噪音特征
+
+        # mask: [B, N] -> [B, N, 1]
+        mask_expanded = mask.unsqueeze(-1)
+
+        # 将填充位置的特征设为负无穷 (-1e9)
+        # 这样在做下面的 max(dim=1) 时，它们绝对不会被选中
+        local_graph_feat = local_graph_feat.masked_fill(mask_expanded == 0, -1e9)
+        # =========================================================
+
+        # 5. 全局池化 (Readout)
+        # [B, C]
         global_graph_feat = local_graph_feat.max(dim=1)[0]
 
         # 6. 后处理

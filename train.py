@@ -16,57 +16,85 @@ from utils.metrics import calculate_metrics
 from utils.misc import fix_seed, save_checkpoint
 from utils.loss import LabelSmoothingBCEWithLogitsLoss,SupConLoss
 
+
+# train.py
+
 def train_one_epoch(model, loader, criterion, optimizer, device, epoch):
     """
-    训练一个 Epoch (v2.0 全局感知版)
+    训练一个 Epoch (v4.0: SupCon + Mixup + GNN Mask)
     """
     model.train()
     running_loss = 0.0
-    # [新增] 实例化对比 Loss
-    criterion_supcon = SupConLoss(temperature=0.07).to(device)
 
-    # [新增] 平衡系数 (分类占 1.0, 对比占 0.5)
+    # 实例化对比 Loss
+    criterion_supcon = SupConLoss(temperature=0.07).to(device)
+    # 平衡系数
     lambda_supcon = 0.5
+    # Mixup 参数
+    mixup_alpha = 0.4
+    # Mixup 触发概率 (可以设为 1.0 全程开启，或者 0.5)
+    mixup_prob = 1.0
+
     pbar = tqdm(loader, desc=f"Epoch {epoch + 1}/{config.EPOCHS} [Train]")
 
-    # [修改] 解包 6 个变量: local, global, physio, mask, label, id
     for step, (local_vis, global_vis, physio, mask, label, subject_ids) in enumerate(pbar):
-        # # --- 新增调试代码 ---
-        # if step == 0:
-        #     print(f"\n🔍 [Debug Check] Labels in this batch: {label.tolist()}")
-        #     print(f"🔍 [Debug Check] Subject IDs: {subject_ids}")
-        # # ------------------
-        #调试成功，删掉注释
-        # # 1. 数据搬运
-        local_vis = local_vis.to(device)  # [B, 32, 512]
-
-        # [关键] 去掉中间的维度: [B, 1, 512] -> [B, 512]
+        # 1. 数据搬运
+        local_vis = local_vis.to(device)
         global_vis = global_vis.to(device).squeeze(1)
-
         physio = physio.to(device)
         mask = mask.to(device)
         label = label.to(device)
 
         optimizer.zero_grad()
 
-        # [修改] 前向传播，要求返回投影特征
-        # outputs 是 logits, proj_feats 是归一化的特征
-        outputs, proj_feats = model(local_vis, global_vis, physio, mask, return_proj=True)
+        # ================= [新增] Mixup 逻辑 =================
+        use_mixup = (np.random.rand() < mixup_prob) and (local_vis.size(0) > 1)
 
-        # 1. 计算分类 Loss (主任务)
-        loss_cls = criterion(outputs, label.float().unsqueeze(1))
+        if use_mixup:
+            # 1. 生成 Mixup 系数 (Beta分布)
+            lam = np.random.beta(mixup_alpha, mixup_alpha)
 
-        # 2. 计算对比 Loss (辅助任务)
-        # 注意：SupCon 需要 label 来知道谁和谁是同类
-        loss_con = criterion_supcon(proj_feats, label)
+            # 2. 生成乱序索引
+            index = torch.randperm(local_vis.size(0)).to(device)
 
-        # 3. 总 Loss
+            # 3. 混合输入数据
+            # 注意：mask 通常取 max 或者原始 mask，这里为了简单直接用原始 mask (假设长度分布类似)
+            mixed_local = lam * local_vis + (1 - lam) * local_vis[index, :]
+            mixed_global = lam * global_vis + (1 - lam) * global_vis[index, :]
+            mixed_physio = lam * physio + (1 - lam) * physio[index, :]
+
+            # 4. 准备混合标签 (用于 BCE Loss)
+            label_a, label_b = label, label[index]
+
+            # 5. 前向传播 (使用混合后的数据)
+            # 注意：mask 不混合，直接用当前的 mask
+            outputs, proj_feats = model(mixed_local, mixed_global, mixed_physio, mask, return_proj=True)
+
+            # 6. 计算 Mixup Loss
+            # 分类 Loss: 混合目标的加权和
+            loss_cls = lam * criterion(outputs, label_a.float().unsqueeze(1)) + \
+                       (1 - lam) * criterion(outputs, label_b.float().unsqueeze(1))
+
+            # 对比 Loss (SupCon):
+            # 策略: 只计算主样本 (Label A) 的 SupCon Loss
+            # 因为 mixed_feat 主要还是保留了 Sample A 的特征结构 (在 lam>0.5 时)
+            loss_con = criterion_supcon(proj_feats, label_a)
+
+        else:
+            # === 原始逻辑 (不使用 Mixup) ===
+            outputs, proj_feats = model(local_vis, global_vis, physio, mask, return_proj=True)
+            loss_cls = criterion(outputs, label.float().unsqueeze(1))
+            loss_con = criterion_supcon(proj_feats, label)
+
+        # ====================================================
+
+        # 总 Loss
         loss = loss_cls + lambda_supcon * loss_con
 
         loss.backward()
         optimizer.step()
 
-        # 6. 记录数据
+        # 记录数据
         loss_val = loss.item()
         running_loss += loss_val
 
@@ -75,7 +103,6 @@ def train_one_epoch(model, loader, criterion, optimizer, device, epoch):
         pbar.set_postfix({"loss": f"{loss_val:.4f}"})
 
     return running_loss / len(loader)
-
 
 def validate(model, loader, criterion, device):
     """

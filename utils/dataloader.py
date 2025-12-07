@@ -1,11 +1,10 @@
-# utils/dataloader.py
-
 import os
 import torch
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 import sys
+from scipy.signal import savgol_filter  # [新增] 导入平滑工具
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
@@ -27,7 +26,6 @@ class SSTDataset(Dataset):
         print(f"✅ {set_name.upper()} set loaded: {len(self.samples)} samples.")
 
     def _split_dataset(self, fold_idx):
-        # ... (保持原有的划分逻辑不变) ...
         excel_path = os.path.join(config.DATASET_DIR, 'Train_Valid.xlsx')
         if not os.path.exists(excel_path):
             raise FileNotFoundError(f"❌ Excel file not found: {excel_path}")
@@ -79,12 +77,12 @@ class SSTDataset(Dataset):
         visual_local = data_pack['local']  # [Seq, 512]
         visual_global = data_pack['global']  # [1, 512]
 
-        # --- B. 获取生理特征 (核心修改部分) ---
-        # 这里的长度以视觉特征为准
+        # --- B. 获取生理特征 ---
         curr_len = visual_local.shape[0]
 
         # 先初始化为 2维 (x,y)
         physio_base = np.zeros((curr_len, 2), dtype=np.float32)
+        valid_p_len = 0  # 记录有效长度
 
         try:
             df = pd.read_csv(txt_path, header=None)
@@ -97,22 +95,31 @@ class SSTDataset(Dataset):
             raw_data = np.clip(raw_data, min_vec, max_vec)
             norm_0_1 = (raw_data - min_vec) / (max_vec - min_vec + 1e-6)
 
-            # 这里的长度可能不一致（虽然通常一致），做个安全截断
+            # 赋值
             valid_p_len = min(len(norm_0_1), curr_len)
             physio_base[:valid_p_len] = norm_0_1[:valid_p_len] * 2 - 1
 
         except Exception:
             pass
 
-        # [新增] 1. 计算速度差分特征 (Delta X, Delta Y)
-        # -----------------------------------------------------------
+        # ================= [新增] 坐标平滑 (Smoothing) =================
+        # 去除高频抖动，让 diff 计算出的速度更真实
+        try:
+            if valid_p_len > 5:
+                # 只平滑有效区域，防止边缘效应
+                physio_base[:valid_p_len, 0] = savgol_filter(physio_base[:valid_p_len, 0], 5, 2)
+                physio_base[:valid_p_len, 1] = savgol_filter(physio_base[:valid_p_len, 1], 5, 2)
+        except Exception:
+            pass
+        # ==============================================================
+
+        # 1. 计算速度差分特征 (Delta X, Delta Y)
+        # 现在的 diff 是基于“平滑后”的坐标算的
         diff = np.zeros_like(physio_base)
-        # 后一项减前一项，第一帧速度设为0
         diff[1:] = physio_base[1:] - physio_base[:-1]
 
-        # [新增] 2. 拼接成 4维特征 (X, Y, dX, dY)
+        # 2. 拼接成 4维特征 (X, Y, dX, dY)
         physio_feat_4d = np.concatenate([physio_base, diff], axis=-1)
-        # -----------------------------------------------------------
 
         # --- 数据增强 (仅训练集) ---
         if self.set_name == 'train':
@@ -128,7 +135,6 @@ class SSTDataset(Dataset):
             drop_mask = drop_mask[:, np.newaxis]
 
             visual_local = visual_local * drop_mask
-            # [修改] 这里的增强要应用到新的 4D 特征上
             physio_feat_4d = physio_feat_4d * drop_mask
 
         # --- C. 统一长度 (Padding) ---
@@ -136,7 +142,6 @@ class SSTDataset(Dataset):
         valid_len = min(curr_len, target_len)
 
         padded_local = np.zeros((target_len, config.INPUT_DIM), dtype=np.float32)
-        # [修改] 维度是 4
         padded_physio = np.zeros((target_len, 4), dtype=np.float32)
         mask = np.zeros(target_len, dtype=np.float32)
 
@@ -145,14 +150,10 @@ class SSTDataset(Dataset):
         padded_physio[:valid_len] = physio_feat_4d[:valid_len]
         mask[:valid_len] = 1.0
 
-        # [新增] 3. 边缘填充 (Edge Padding)
-        # -----------------------------------------------------------
-        # 如果序列不够长，剩下的位置填“最后一帧的值”，而不是 0
-        # 这样 GNN 会认为眼睛在最后停留了，而不是瞬移到了原点 (0,0)
+        # [核心] 边缘填充 (Edge Padding)
         if valid_len < target_len and valid_len > 0:
             last_val = physio_feat_4d[valid_len - 1]  # 获取最后一帧 (4维)
-            padded_physio[valid_len:] = last_val  # 广播填充到剩余位置
-        # -----------------------------------------------------------
+            padded_physio[valid_len:] = last_val  # 广播填充
 
         subject_id_str = key.split('_', 1)[0]
 

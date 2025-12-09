@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import sys
 import os
-
+import torch.nn.functional as F
 # 导入配置
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
@@ -123,7 +123,8 @@ class StructuralStream(nn.Module):
         B, N, C = x.shape
 
         # 1. 动态建图 (KNN)
-        knn_idx = self.get_knn_indices(coords, self.k)
+        x_norm = F.normalize(x, p=2, dim=-1) # [B, N, 128]
+        knn_idx = self.get_knn_indices(x_norm, self.k)
 
         # 2. 构造图特征
         edge_feat = self.get_graph_feature(x, self.k, knn_idx)

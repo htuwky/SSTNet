@@ -60,7 +60,7 @@ class SSTNet(nn.Module):
         # 5. 分类头 (Classifier)
         # 融合维度 = 128 (Time) + 128 (Space) + 128 (Structure) = 384
         fusion_dim = config.HIDDEN_DIM * 3
-
+        self.stream_attention = StreamAttention(total_dim=config.HIDDEN_DIM * 3, num_streams=3)
         self.classifier = nn.Sequential(
             nn.Linear(fusion_dim, config.CLS_HIDDEN_DIM),
             nn.BatchNorm1d(config.CLS_HIDDEN_DIM),
@@ -98,8 +98,9 @@ class SSTNet(nn.Module):
         # struct_feat = self.structural_stream(local_low, physio)
         struct_feat = self.structural_stream(local_low, physio, mask)
         # 5. 三流融合
-        fusion_feat = torch.cat([temp_feat, spatial_feat, struct_feat], dim=1)
-
+        # fusion_feat = torch.cat([temp_feat, spatial_feat, struct_feat], dim=1)
+        stream_list = [temp_feat, spatial_feat, struct_feat]
+        fusion_feat, weights = self.stream_attention(stream_list)
         # [修改] 各种返回模式
         if return_feats:
             return fusion_feat  # 供 MIL 提取特征用
@@ -116,6 +117,43 @@ class SSTNet(nn.Module):
         return logits
 
 
+class StreamAttention(nn.Module):
+    """
+    [新增组件] 流注意力模块
+    根据输入特征动态计算三个流的权重 (w1, w2, w3)
+    """
+
+    def __init__(self, total_dim=384, num_streams=3):
+        super().__init__()
+        # 一个非常小的 MLP: 384 -> 64 -> 3
+        self.attn_net = nn.Sequential(
+            nn.Linear(total_dim, total_dim // 4),  # 降维减少参数
+            nn.ReLU(),
+            nn.Linear(total_dim // 4, num_streams),
+            nn.Softmax(dim=1)  # 保证权重之和为 1
+        )
+
+    def forward(self, x_list):
+        """
+        Args:
+            x_list: [feat1, feat2, feat3] 列表
+        """
+        # 1. 先拼接拿到全量特征
+        cat_feat = torch.cat(x_list, dim=1)
+
+        # 2. 计算权重 [Batch, 3]
+        weights = self.attn_net(cat_feat)
+
+        # 3. 加权 (注意: 保持维度独立，不是相加，而是加权拼接)
+        # 我们希望保留 384 维，只是让某些流变强/变弱
+        weighted_list = []
+        for i, feat in enumerate(x_list):
+            # weights[:, i] 形状是 [B], 需要 unsqueeze 成 [B, 1]
+            w = weights[:, i].unsqueeze(1)
+            weighted_list.append(feat * w)
+
+        # 4. 再次拼接作为输出
+        return torch.cat(weighted_list, dim=1), weights
 # ==========================================
 # 简单的自检代码 (运行 python models/sstnet.py)
 # ==========================================
@@ -138,7 +176,7 @@ if __name__ == "__main__":
 
     dummy_local = torch.randn(B, L, D_in).to(device)  # [2, 32, 512]
     dummy_global = torch.randn(B, D_in).to(device)  # [2, 512]
-    dummy_physio = torch.rand(B, L, 2).to(device)  # [2, 32, 2] (X,Y 0~1)
+    dummy_physio = torch.rand(B, L, config.PHYSIO_DIM).to(device)  # [2, 32, 2] (X,Y 0~1)
     dummy_mask = torch.ones(B, L).to(device)  # [2, 32]
 
     # 执行前向传播

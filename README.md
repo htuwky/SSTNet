@@ -1,173 +1,83 @@
-# SSTNet: Spatial-Spectral Temporal Network for Eye-Tracking Classification
+这是一个为您量身定制的全新 `README.md` 文档，完美匹配您现在的 **SSTNet v3.5 (Semantic-Aware & Adaptive Fusion)** 架构。
 
+我已经更新了**核心架构描述**（加入了语义图流和流注意力）、**数据流水线**以及**各个脚本的最新功能**。您可以直接覆盖项目根目录下的 `README.md`。
 
+````markdown
+# SSTNet v3.5: Semantic-Aware Spatio-Temporal Network
 
-**SSTNet** 是一个专为眼动追踪数据（Eye-Tracking Data）设计的多模态深度学习分类框架。
+**SSTNet** 是一个专为眼动追踪数据（Eye-Tracking Data）设计的深度学习多模态分类框架。
 
-本项目旨在通过深度融合受试者的**注视行为（时序与生理特征）和注视内容（空间与视觉特征）**，辅助诊断精神疾病（例如，区分精神分裂症患者 SZ 与健康对照组 HC）。
+本项目旨在通过深度融合受试者的**注视行为（时序与生理特征）**、**注视内容（视觉与空间特征）**以及**潜在的语义关联（结构特征）**，辅助诊断精神疾病（例如，区分精神分裂症患者 SZ 与健康对照组 HC）。
 
-其核心设计哲学是 **"Look where humans look"**：模型不再盲目处理整张图像，而是精确地聚焦于人眼关注的局部区域，并结合全局上下文进行推理。
+v3.5 版本引入了 **"语义动态图 (Semantic Dynamic Graph)"** 和 **"流注意力机制 (Stream-wise Attention)"**，显著增强了模型对小样本数据的适应能力和对跨时空语义回视行为的捕捉能力。
 
-------
-
-
+---
 
 ## 🧠 核心架构 (Core Architecture)
 
-
-
-SSTNet 采用了一种新颖的**双流多模态架构 (Two-Stream Multimodal Architecture)** (v2.0 Global Aware 版)。
-
-模型并行处理两条路径，最终融合以进行序列级预测：
-
-
+SSTNet v3.5 采用 **三流多模态架构 (Tri-Stream Multimodal Architecture)**，通过自适应注意力门控进行融合：
 
 ### 1. 时序流 (Temporal Stream: The "How")
-
-
-
-- **核心组件**: 基于 **Transformer Encoder**。
-- **功能**: 捕捉注视行为的时序逻辑和演变过程（例如：先看了哪里，后看了哪里，停留了多久）。
-- **多模态融合**: 该流不仅处理局部的视觉特征，还独特地融合了：
-  - **全局视觉上下文 (Global Context)**: 来源于整张原图的 CLIP 特征，广播到每个时间步。
-  - **生理特征 (Physiological Data)**: 包含注视点坐标 (X, Y)、注视时长和瞳孔直径。
-
-
+- **核心组件**: **Fourier Embedding + Transformer Encoder**
+- **输入**: 局部视觉特征 + 生理坐标 (X, Y, dX, dY) + 全局上下文
+- **功能**: 利用傅里叶位置编码将低维坐标映射到高维空间，通过 Self-Attention 捕捉注视行为的时序逻辑（如：迟疑、跳跃、凝视时长）。
+- **特点**: 负责处理 "物理位置" 和 "时间顺序"。
 
 ### 2. 空间流 (Spatial Stream: The "What")
+- **核心组件**: **NetVLAD (Vector of Locally Aggregated Descriptors)**
+- **输入**: 局部视觉特征 (CLIP Local Features)
+- **功能**: 忽略时间顺序，统计受试者关注了多少次特定类型的视觉区域（聚类中心）。
+- **特点**: 负责处理 "全局内容统计"（例如：看了多少次人脸区域 vs 背景区域）。
 
+### 3. [核心升级] 结构流 (Structural Stream: The "Why")
+- **核心组件**: **Semantic Dynamic GNN (EdgeConv)**
+- **输入**: 纯视觉语义特征 (CLIP Features)
+- **机制**: **不再基于物理坐标建图**，而是基于 **视觉内容相似度** 动态构建 K-近邻图 (KNN)。
+- **功能**: 捕捉跨越时空的 **"语义回视" (Semantic Re-visiting)**。即使两个注视点物理距离很远，只要它们都在看相似物体（如都在看眼睛），也会被连接并聚合特征。
 
+### 4. [核心升级] 自适应融合 (Adaptive Fusion)
+- **组件**: **Stream-wise Attention (轻量级流注意力)**
+- **机制**: 动态学习三个流的权重 $(w_1, w_2, w_3)$。
+- **优势**: 实现 "千人千面" 的诊断逻辑。对于某些病人，模型可能更看重时序异常；对于另一些，则更看重语义结构异常。
 
-- **核心组件**: 基于 **NetVLAD (Vector of Locally Aggregated Descriptors)**。
-- **功能**: 捕捉注视内容的空间分布统计信息，**忽略时间顺序**。
-- **机制**: 通过聚类分析，统计受试者关注了多少次特定类型的视觉区域（例如，人脸区域 vs. 背景区域），生成一个描述内容分布的全局描述子。
-
-
-
-### 3. 高级聚合 (Advanced Aggregation - Optional)
-
-
-
-- **MIL 模型**: 提供了一个独立的 **多示例学习 (Multiple Instance Learning, MIL)** 模块 (`RobustGatedAttention`)。
-- **功能**: 将同一个受试者观看多张图片产生的所有序列特征聚合为一个病人级的诊断结果，能够自动识别最具诊断价值的关键图片/序列。
-
-------
-
-
+---
 
 ## 🛠️ 环境准备 (Installation)
 
+### 依赖安装
+请确保 Python >= 3.8，并配置好 CUDA 环境。
 
+```bash
+# 1. 安装项目依赖
+pip install -r requirements.txt
 
-请确保您的环境满足以下要求：
+# 2. 确保 CLIP 已正确安装
+pip install git+[https://github.com/openai/CLIP.git](https://github.com/openai/CLIP.git)
 
-- Python >= 3.8
-- PyTorch (建议使用 GPU 版本)
-- CUDA 环境（如果使用 GPU）
-
-
-
-### 一键安装依赖
-
-
-
-Bash
-
-```
-# 1. 安装通用依赖库
-pip install pandas numpy tqdm scikit-learn matplotlib wandb openpyxl
-
-# 2. 安装 OpenAI CLIP
-pip install git+https://github.com/openai/CLIP.git
-
-# 3. (可选) 运行环境自检脚本确保一切正常
+# 3. 运行环境自检 (强烈推荐)
 python check_env.py
-```
+````
 
-------
-
-
-
-## 📂 项目结构概览 (Project Structure)
-
-
-
-```
-SSTNet/
-├── config.py                      # [核心配置] 所有的路径、超参数、模型参数定义
-├── train.py                       # [主训练脚本] SSTNet 端到端训练与验证
-├── train_mil.py                   # [MIL训练脚本] 第二阶段：病人级聚合训练
-├── extract_features.py            # [工具脚本] 使用训练好的 SSTNet 提取特征供 MIL 使用
-├── test.py                        # [测试脚本] 标准测试集推理
-├── test_ems.py                    # [测试脚本] EMS 特定数据集推理
-├── check_env.py                   # 环境自检工具
-├── requirements.txt               # 依赖列表
-├── README.md                      # 项目文档
-│
-├── models/                        # 模型定义目录
-│   ├── sstnet.py                  # SSTNet 主模型 (组装双流)
-│   ├── temporal_stream.py         # 时序流 (Transformer + 多模态融合)
-│   ├── spatial_stream.py          # 空间流 (NetVLAD)
-│   └── mil_model.py               # MIL 聚合模型 (Robust Gated Attention)
-│
-├── data_process/                  # 数据预处理流水线
-│   ├── split_fix.py               # [Step 1] 清洗 Excel 并拆分为 TXT 序列
-│   ├── generate_clip_features.py  # [Step 2] 提取 CLIP 视觉特征 (.npy)
-│   ├── check_data_stats.py        # [分析] 统计生理数据分布，用于更新归一化参数
-│   ├── check_fixation_stats.py    # [分析] 统计序列长度，用于设定 MAX_SEQ_LEN
-│   └── inspect_npy.py             # [工具] 检查生成的特征文件内容
-│
-├── utils/                         # 通用工具箱
-│   ├── dataloader.py              # PyTorch Dataset 和 DataLoader 实现
-│   ├── loss.py                    # 损失函数定义 (如 BCEWithLogitsLoss)
-│   ├── metrics.py                 # 评估指标计算 (AUC, ACC, F1 等)
-│   └── misc.py                    # 杂项 (固定随机种子, 模型保存)
-│
-├── dataset/                       # 数据存放区 (需自行准备数据)
-│   ├── Images/                    # 原始图片素材库
-│   ├── Train_Valid.xlsx           # 训练/验证集划分表
-│   ├── Train_Valid/Fixations/     # 训练集原始眼动 Excel
-│   ├── Test/Fixations/            # 测试集原始眼动 Excel
-│   ├── TXT/                       # (自动生成) 清洗后的 TXT 序列文件
-│   └── output/                    # (自动生成) 提取的 CLIP 特征 (.npy)
-│
-└── checkpoints/                   # 模型权重保存目录
-```
-
-------
-
-
+-----
 
 ## 🚀 完整数据流水线 (Data Pipeline)
 
+严格按照以下步骤操作，即可完成从原始 Excel 到最终诊断的全过程。所有路径均在 `config.py` 中集中配置。
 
+### 0\. 数据准备
 
-在开始训练之前，必须严格按照以下步骤处理数据。所有路径均在 `config.py` 中配置。
+将数据放入 `dataset/` 目录：
 
+  - `dataset/Images/`: 原始图片库
+  - `dataset/Train_Valid/Fixations/`: 训练集 Excel 文件
+  - `dataset/Test/Fixations/`: 测试集 Excel 文件
+  - `dataset/Train_Valid.xlsx`: 官方划分表 (用于 K-Fold)
 
+### Step 1: 数据清洗与序列化
 
-### 准备工作
+将原始 Excel 清洗、去噪、归一化，并拆分为独立的 `.txt` 序列文件。
 
-
-
-将原始数据放置在正确的位置：
-
-1. 图片文件 -> `dataset/Images/`
-2. 训练集眼动 Excel -> `dataset/Train_Valid/Fixations/`
-3. 测试集眼动 Excel -> `dataset/Test/Fixations/`
-4. 划分表 -> `dataset/Train_Valid.xlsx`
-
-
-
-### 步骤 1: 数据清洗与序列化
-
-
-
-运行 `split_fix.py`。此脚本会读取原始 Excel，剔除越界坐标，并将数据按“受试者_图片”拆分为独立的 `.txt` 序列文件。
-
-Bash
-
-```
+```bash
 # 处理训练/验证集
 python data_process/split_fix.py --train
 
@@ -175,131 +85,90 @@ python data_process/split_fix.py --train
 python data_process/split_fix.py --test
 ```
 
-*输出：生成的 `.txt` 文件将保存在 `dataset/TXT/` 目录下。*
+### Step 2: 模拟视觉 (CLIP Feature Extraction)
 
+模拟人眼观察，根据注视点坐标裁剪局部 Patch，提取 CLIP 高维语义特征。
+*(此步骤生成 .npy 文件较大，需 GPU 加速)*
 
-
-### 步骤 2: 提取 CLIP 视觉特征
-
-
-
-运行 `generate_clip_features.py`。此脚本模拟人眼观察，根据注视点坐标裁剪局部图像，并使用预训练的 CLIP 模型提取**局部特征 (Local)** 和**全局特征 (Global)**。
-
-*注意：此步骤需要 GPU，且耗时较长。生成的 `.npy` 文件体积较大。*
-
-Bash
-
-```
-# 提取训练/验证集特征
+```bash
+# 提取训练集特征
 python data_process/generate_clip_features.py --train
 
 # 提取测试集特征
 python data_process/generate_clip_features.py --test
 ```
 
-*输出：特征字典将保存为 `dataset/output/\*.npy` 文件。*
+### Step 3: 训练 SSTNet (Sequence Level)
 
+进行 4-Fold 交叉验证训练。包含对比学习 (SupCon)、Mixup 数据增强和标签平滑。
 
-
-### 步骤 3 (可选): 数据分析与配置更新
-
-
-
-为了获得最佳性能，建议运行统计脚本来校准 `config.py` 中的参数。
-
-1. 运行 `python data_process/check_fixation_stats.py` 查看序列长度分布，确认 `MAX_SEQ_LEN` 设置是否合理。
-2. 运行 `python data_process/check_data_stats.py` 获取生理数据的精确统计值（Min/Max），并更新 `config.py` 中的归一化边界参数。
-
-------
-
-
-
-## ⚡ 训练与评估 (Training & Evaluation)
-
-
-
-项目支持标准的 K-Fold 交叉验证。训练过程会自动连接 WandB 进行可视化记录。
-
-
-
-### 阶段一：SSTNet 端到端训练
-
-
-
-直接训练 SSTNet 主模型。验证时采用 Mean Voting 策略聚合病人级别的预测结果。
-
-Bash
-
-```
-# 训练第 0 折 (Fold 0)
+```bash
+# 训练第 0 折
 python train.py --fold 0
 
-# 训练其他折
+# 依次训练其他折
 python train.py --fold 1
-# ...
+python train.py --fold 2
+python train.py --fold 3
 ```
 
-*最佳模型将保存在 `checkpoints/best_model_foldX.pth`。*
+### Step 4: 提取高阶特征 (For MIL)
 
+使用训练好的 SSTNet 作为特征提取器，为下一阶段的 MIL 准备数据。
 
-
-### 阶段二 (高级)：多示例学习 (MIL) 训练
-
-
-
-使用训练好的 SSTNet 作为特征提取器，训练一个专门的 MIL 聚合模型，以进一步提升病人级诊断性能。
-
-1. 提取特征 Bag:
-
-加载某一折最好的 SSTNet 模型，提取所有数据的高维特征。
-
-Bash
-
-```
-# 使用 Fold 0 的模型提取特征
-python extract_features.py --fold 0
+```bash
+# 提取第 0 折的特征 Bag
+python data_process/extract_features_hook.py --fold 0
+# ... (对其他折重复此步骤)
 ```
 
-2. 训练 MIL Aggregator:
+### Step 5: 病人级诊断 (MIL Training)
 
-基于提取的特征 Bag 训练 Robust Gated Attention 模型。
+训练 Robust Gated Attention 模型，聚合病人的所有序列特征，输出最终诊断。
 
-Bash
-
-```
-# 训练 MIL 模型 (使用 Fold 0 提取的特征)
+```bash
+# 训练第 0 折的 MIL 模型
 python train_mil.py --fold 0 --lr 1e-4 --dropout 0.5
 ```
 
-------
+-----
 
+## ⚙️ 关键配置 (Configuration)
 
+所有参数均在 `config.py` 中定义。
 
-## ⚙️ 关键配置说明 (Configuration)
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `INPUT_DIM` | 512 | CLIP 原始特征维度 |
+| `HIDDEN_DIM`| 128 | **核心瓶颈层**，SSTNet 内部计算维度 |
+| `PHYSIO_DIM`| 4 | 生理特征 (X, Y, dX, dY) |
+| `GNN_K` | 4 | 结构流 KNN 邻居数量 |
+| `BATCH_SIZE`| 64 | 训练批次大小 |
+| `EPOCHS` | 100 | 训练轮数 |
 
+-----
 
+## 📊 评估工具
 
-所有核心参数均在 `config.py` 中集中管理。修改配置后无需改动代码。
+项目提供了丰富的工业级评估脚本：
 
-| **参数类别** | **参数名**         | **默认值** | **说明**                             |
-| ------------ | ------------------ | ---------- | ------------------------------------ |
-| **数据维度** | `INPUT_DIM`        | 512        | CLIP 原始特征维度                    |
-|              | `PHYSIO_DIM`       | 4          | 生理特征维度 (X, Y, Duration, Pupil) |
-|              | `MAX_SEQ_LEN`      | 32         | 序列最大长度 (截断/填充)             |
-| **模型结构** | `HIDDEN_DIM`       | 128        | **核心瓶颈层维度**，控制模型容量     |
-| **时序流**   | `TEMP_LAYERS`      | 2          | Transformer 层数                     |
-|              | `TEMP_HEADS`       | 4          | 注意力头数 (需能被 HIDDEN_DIM 整除)  |
-| **空间流**   | `SPATIAL_CLUSTERS` | 8          | NetVLAD 聚类中心数 (K)               |
-| **训练参数** | `BATCH_SIZE`       | 64         | 批次大小                             |
-|              | `LEARNING_RATE`    | 5e-4       | 初始学习率                           |
-|              | `EPOCHS`           | 100        | 总训练轮数                           |
+  - `test.py`: 标准测试集推理，生成 CSV 报告。
+  - `test_ems.py`: EMS 特定数据集推理。
+  - `utils/industrial_eval_cv.py`: 基于交叉验证结果，进行阈值扫描和灰区分析 (Gray Zone Analysis)。
+  - `utils/industrial_eval_mil.py`: 针对 MIL 模型的病人级诊断评估。
 
-------
+-----
 
+## 📝 版本日志
 
+  - **v3.5 (Current)**:
+      - 结构流升级为 **语义动态图 (Semantic KNN)**。
+      - 融合模块升级为 **流注意力 (Stream-wise Attention)**。
+      - 修复了生理特征维度匹配 Bug。
+  - **v2.0**: 引入 CLIP 双流特征 (Global Aware)。
+  - **v1.0**: 基础 Transformer + NetVLAD 架构。
 
-## ⚖️ License
+<!-- end list -->
 
-
-
-[NONE]
+```
+```

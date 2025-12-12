@@ -13,7 +13,7 @@ class RobustGatedAttention(nn.Module):
     3. 强正则化 (LayerNorm + Dropout)：防止在小样本(160人)上过拟合。
     """
 
-    def __init__(self, input_dim=256, bottleneck_dim=32, hidden_dim=128, dropout=0.5):
+    def __init__(self, input_dim=256, bottleneck_dim=64, hidden_dim=128, dropout=0.5):
         """
         Args:
             input_dim: 输入特征维度 (SSTNet融合后的维度，Detect出来是 256)

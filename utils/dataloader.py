@@ -104,14 +104,14 @@ class SSTDataset(Dataset):
 
         # ================= [新增] 坐标平滑 (Smoothing) =================
         # 去除高频抖动，让 diff 计算出的速度更真实
-        try:
-            if valid_p_len > 5:
-                # 只平滑有效区域，防止边缘效应
-                physio_base[:valid_p_len, 0] = savgol_filter(physio_base[:valid_p_len, 0], 5, 2)
-                physio_base[:valid_p_len, 1] = savgol_filter(physio_base[:valid_p_len, 1], 5, 2)
-        except Exception:
-            pass
-        # ==============================================================
+        # try:
+        #     if valid_p_len > 5:
+        #         # 只平滑有效区域，防止边缘效应
+        #         physio_base[:valid_p_len, 0] = savgol_filter(physio_base[:valid_p_len, 0], 5, 2)
+        #         physio_base[:valid_p_len, 1] = savgol_filter(physio_base[:valid_p_len, 1], 5, 2)
+        # except Exception:
+        #     pass
+        # # ==============================================================
 
         # 1. 计算速度差分特征 (Delta X, Delta Y)
         # 现在的 diff 是基于“平滑后”的坐标算的
